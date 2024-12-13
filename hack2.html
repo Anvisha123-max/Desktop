@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureShare - Privacy Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://unpkg.com/crypto-js@4.1.1/crypto-js.js"></script>
+</head>
+<body class="bg-gray-50">
+    <nav class="bg-cyan-600 text-white p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">SecureShare</h1>
+            <div class="space-x-4" id="navButtons">
+                <button onclick="showLogin()" class="px-4 py-2 bg-white text-cyan-600 rounded-lg">Login</button>
+                <button onclick="showRegister()" class="px-4 py-2 border border-white rounded-lg">Register</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-4">
+        <!-- Register Form -->
+        <div id="registerForm" class="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md hidden">
+            <h2 class="text-2xl font-bold mb-4">Register</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block mb-2">Name</label>
+                    <input type="text" id="regName" class="w-full p-2 border rounded" required>
+                </div>
+                <div>
+                    <label class="block mb-2">Email</label>
+                    <input type="email" id="regEmail" class="w-full p-2 border rounded" required>
+                </div>
+                <div>
+                    <label class="block mb-2">Password</label>
+                    <input type="password" id="regPassword" class="w-full p-2 border rounded" required>
+                </div>
+                <button onclick="register()" class="w-full bg-cyan-600 text-white px-6 py-2 rounded-lg">
+                    Register
+                </button>
+                <p class="text-center text-sm text-gray-600">
+                    Already have an account? 
+                    <a href="#" onclick="showLogin()" class="text-cyan-600">Login</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Login Form -->
+        <div id="loginForm" class="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-2xl font-bold mb-4">Login</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block mb-2">Email</label>
+                    <input type="email" id="loginEmail" class="w-full p-2 border rounded" required>
+                </div>
+                <div>
+                    <label class="block mb-2">Password</label>
+                    <input type="password" id="loginPassword" class="w-full p-2 border rounded" required>
+                </div>
+                <button onclick="login()" class="w-full bg-cyan-600 text-white px-6 py-2 rounded-lg">
+                    Login
+                </button>
+                <p class="text-center text-sm text-gray-600">
+                    Don't have an account? 
+                    <a href="#" onclick="showRegister()" class="text-cyan-600">Register</a>
+                </p>
+            </div>
+        </div>
+
+        <!-- Main Dashboard -->
+        <div id="dashboard" class="hidden">
+            <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+                <h2 class="text-2xl font-bold mb-4">Share Sensitive Data</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block mb-2">Select Information Type</label>
+                        <select id="infoType" class="w-full p-2 border rounded">
+                            <option value="medical">Medical Records</option>
+                            <option value="personal">Personal Information</option>
+                            <option value="educational">Educational Records</option>
+                            <option value="financial">Financial Records</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-2">Information Content</label>
+                        <textarea id="infoContent" class="w-full p-2 border rounded h-32" placeholder="Enter your sensitive information here..."></textarea>
+                    </div>
+                    <div>
+                        <label class="block mb-2">Upload Related Files</label>
+                        <input type="file" id="fileUpload" class="w-full p-2 border rounded" multiple>
+                    </div>
+                    <div>
+                        <label class="block mb-2">Share with (Email)</label>
+                        <input type="email" id="shareEmail" class="w-full p-2 border rounded" placeholder="Optional">
+                    </div>
+                    <div class="flex space-x-4">
+                        <button onclick="saveInformation()" class="flex-1 bg-cyan-600 text-white px-6 py-2 rounded-lg">
+                            Save Information
+                        </button>
+                        <button onclick="shareInformation()" class="flex-1 bg-green-600 text-white px-6 py-2 rounded-lg">
+                            Share Information
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Saved Information List -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold mb-4">Saved Information</h2>
+                <div id="savedInfoList" class="space-y-4">
+                    <!-- Information will be listed here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-4 right-4 bg-green-500 text-white p-4 rounded-lg hidden"></div>
+
+    <script>
+        // Initialize storage
+        const users = JSON.parse(localStorage.getItem('users')) || [];
+        const savedInfo = JSON.parse(localStorage.getItem('savedInfo')) || [];
+        let currentUser = null;
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `fixed bottom-4 right-4 p-4 rounded-lg ${type === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`;
+            toast.classList.remove('hidden');
+            setTimeout(() => toast.classList.add('hidden'), 3000);
+        }
+
+        function showLogin() {
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+        }
+
+        function showRegister() {
+            document.getElementById('registerForm').classList.remove('hidden');
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('dashboard').classList.remove('hidden');
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('navButtons').innerHTML = `
+                <span class="text-white">Welcome, ${currentUser.name}</span>
+                <button onclick="logout()" class="px-4 py-2 border border-white rounded-lg">Logout</button>
+            `;
+            updateSavedInfoList();
+        }
+
+        function register() {
+            const name = document.getElementById('regName').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+
+            if (!name || !email || !password) {
+                showToast('Please fill in all fields', 'error');
+                return;
+            }
+
+            if (users.find(u => u.email === email)) {
+                showToast('Email already registered', 'error');
+                return;
+            }
+
+            const hashedPassword = CryptoJS.SHA256(password).toString();
+            const newUser = { name, email, password: hashedPassword };
+            users.push(newUser);
+            localStorage.setItem('users', JSON.stringify(users));
+            showToast('Registration successful! Please login.');
+            showLogin();
+        }
+
+        function login() {
+            const email = document.getElementById('loginEmail').value;
+            const password = document.getElementById('loginPassword').value;
+            const hashedPassword = CryptoJS.SHA256(password).toString();
+
+            const user = users.find(u => u.email === email && u.password === hashedPassword);
+            if (user) {
+                currentUser = user;
+                showToast('Login successful!');
+                showDashboard();
+            } else {
+                showToast('Invalid credentials', 'error');
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            showLogin();
+            document.getElementById('navButtons').innerHTML = `
+                <button onclick="showLogin()" class="px-4 py-2 bg-white text-cyan-600 rounded-lg">Login</button>
+                <button onclick="showRegister()" class="px-4 py-2 border border-white rounded-lg">Register</button>
+            `;
+        }
+
+        function saveInformation() {
+            if (!currentUser) return;
+
+            const type = document.getElementById('infoType').value;
+            const content = document.getElementById('infoContent').value;
+            const files = document.getElementById('fileUpload').files;
+
+            if (!content) {
+                showToast('Please enter information content', 'error');
+                return;
+            }
+
+            const info = {
+                id: Date.now(),
+                type,
+                content: CryptoJS.AES.encrypt(content, 'secret-key').toString(),
+                userId: currentUser.email,
+                timestamp: new Date().toISOString(),
+                files: Array.from(files).map(f => ({ name: f.name }))
+            };
+
+            savedInfo.push(info);
+            localStorage.setItem('savedInfo', JSON.stringify(savedInfo));
+            showToast('Information saved successfully!');
+            updateSavedInfoList();
+            clearForm();
+        }
+
+        function shareInformation() {
+            const shareEmail = document.getElementById('shareEmail').value;
+            if (!shareEmail) {
+                showToast('Please enter recipient email', 'error');
+                return;
+            }
+
+            if (!users.find(u => u.email === shareEmail)) {
+                showToast('Recipient not found in system', 'error');
+                return;
+            }
+
+            saveInformation();
+            showToast(`Information shared with ${shareEmail}`);
+        }
+
+        function updateSavedInfoList() {
+            const list = document.getElementById('savedInfoList');
+            const userInfo = savedInfo.filter(info => info.userId === currentUser.email);
+            
+            list.innerHTML = userInfo.map(info => `
+                <div class="p-4 border rounded-lg">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <span class="bg-cyan-100 text-cyan-800 px-2 py-1 rounded text-sm">${info.type}</span>
+                            <p class="mt-2">${CryptoJS.AES.decrypt(info.content, 'secret-key').toString(CryptoJS.enc.Utf8)}</p>
+                            ${info.files.length ? `<p class="text-sm text-gray-600 mt-2">Files: ${info.files.map(f => f.name).join(', ')}</p>` : ''}
+                        </div>
+                        <button onclick="deleteInfo(${info.id})" class="text-red-600 hover:text-red-800">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">${new Date(info.timestamp).toLocaleString()}</p>
+                </div>
+            `).join('');
+        }
+
+        function deleteInfo(id) {
+            const index = savedInfo.findIndex(info => info.id === id);
+            if (index > -1) {
+                savedInfo.splice(index, 1);
+                localStorage.setItem('savedInfo', JSON.stringify(savedInfo));
+                updateSavedInfoList();
+                showToast('Information deleted successfully!');
+            }
+        }
+
+        function clearForm() {
+            document.getElementById('infoContent').value = '';
+            document.getElementById('fileUpload').value = '';
+            document.getElementById('shareEmail').value = '';
+        }
+    </script>
+</body>
+</html>

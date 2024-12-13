@@ -1,0 +1,487 @@
+/**
+ * Scripts tags that are to be run before AnalyticsJS runs
+ */
+
+// 1) CleverTap (search 'a?t' in NetWork tabs)
+// const clevertap = { event: [], profile: [], region: 'in', account: [], onUserLogin: [], notifications: [] };
+// clevertap.account.push({ id: 'WW5-K94-874Z' }); // add clevertap prod id
+// (function () {
+//   const wzrk = document.createElement('script');
+//   wzrk.type = 'text/javascript';
+//   wzrk.async = true;
+//   wzrk.src = (document.location.protocol === 'https:' ? 'https://d2r1yp2w7bby2u.cloudfront.net' : 'http://static.clevertap.com') + '/js/a.js';
+//   const s = document.getElementsByTagName('script')[0];
+//   s.parentNode.insertBefore(wzrk, s);
+// })();
+
+// 2) Google Analytics (search 'collect?' in NetWork tabs)
+const gaCode = document?.getElementById('analyticsScript')?.getAttribute('gacode');
+
+(function () {
+  const wzrk = document.createElement('script');
+  wzrk.type = 'text/javascript';
+  wzrk.async = true;
+  wzrk.src = `https://www.googletagmanager.com/gtag/js?id=${gaCode}`;
+
+  // const s = document.getElementsByTagName('script')[0];
+  document.head.appendChild(wzrk);
+  // s.parentNode.insertBefore(wzrk, s);
+})();
+
+window.dataLayer = window.dataLayer || [];
+// eslint-disable-next-line no-autofix/jsdoc/require-jsdoc
+function gtag() {
+  window.dataLayer.push(arguments);
+}
+gtag('js', new Date());
+gtag('config', gaCode);
+
+/*
+Analytics.js is dependent on Client.js
+Load client.js before loading this.
+Usage: Analaytics.js is use to send some events to server. Like begin, end, etc.
+*/
+(function (scope) {
+  /**
+   * AnalyticsJS is main class that exports in global scope.
+   * @method AnalyticsJS
+   * @return
+   */
+  function AnalyticsJS() {
+    let xForwardedFor = 'NA';
+    // const geoLocation = {};
+    let deviceTypeAbbr;
+    let platformAbbr;
+    let currentOS;
+    let userAgent;
+    let logNo = 1;
+    let evtNo = 1;
+
+    platformAbbr = {
+      Windows: 'WIN',
+      iOS: 'I',
+      Andriod: 'A',
+      Linux: 'LIN'
+    };
+
+    deviceTypeAbbr = {
+      mobile: 'S',
+      tablet: 'T'
+    };
+
+    /**
+     * This Method is used to fetch user IP and store into xForwardedFor variable
+     * @method getUserIP
+     * @return
+     */
+    function getUserIP() {
+      try {
+        const RTCPeerConnection = /* window.RTCPeerConnection || */ window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+        if (RTCPeerConnection) {
+          (function () {
+            const rtc = new RTCPeerConnection({ iceServers: [] });
+            const addrs = Object.create(null);
+            if (1 || window.mozRTCPeerConnection) {
+              // FF [and now Chrome!] needs a channel/stream to proceed
+              rtc.createDataChannel('', { reliable: false });
+            }
+
+            rtc.onicecandidate = function (evt) {
+              // convert the candidate to SDP so we can run it through our general parser
+              // see https://twitter.com/lancestout/status/525796175425720320 for details
+              if (evt.candidate) grepSDP('a=' + evt.candidate.candidate);
+            };
+            rtc.createOffer(
+              function (offerDesc) {
+                grepSDP(offerDesc.sdp);
+                rtc.setLocalDescription(offerDesc);
+              },
+              function (e) {
+                console.warn('offer failed', e);
+              }
+            );
+
+            addrs['0.0.0.0'] = false;
+
+            function updateDisplay(newAddr) {
+              if (newAddr in addrs) return;
+              else addrs[newAddr] = true;
+              const displayAddrs = Object.keys(addrs).filter(function (k) {
+                return addrs[k];
+              });
+              // document.getElementById('list').textContent = displayAddrs.join(" or perhaps ") || "n/a";
+              xForwardedFor = displayAddrs.join();
+            }
+
+            // eslint-disable-next-line no-autofix/jsdoc/require-jsdoc
+            function grepSDP(sdp) {
+              const hosts = [];
+              sdp.split('\r\n').forEach(function (line) {
+                // c.f. http://tools.ietf.org/html/rfc4566#page-39
+                if (~line.indexOf('a=candidate')) {
+                  // http://tools.ietf.org/html/rfc4566#section-5.13
+                  var parts = line.split(' '); // http://tools.ietf.org/html/rfc5245#section-15.1
+                  var addr = parts[4];
+                  const type = parts[7];
+                  if (type === 'host') updateDisplay(addr);
+                } else if (~line.indexOf('c=')) {
+                  // http://tools.ietf.org/html/rfc4566#section-5.7
+                  var parts = line.split(' ');
+                  var addr = parts[2];
+                  updateDisplay(addr);
+                }
+              });
+            }
+          })();
+        }
+      } catch (e) {}
+    }
+
+    /**
+     * This method creates object of clientData. Uses Client.js methods to fetch data.
+     * @method initClientData
+     * @return
+     */
+    function initClientData() {
+      const deviceType = this.clientJS.getDeviceType();
+      let pf = platformAbbr[currentOS];
+      let dtpe = deviceTypeAbbr[deviceType];
+      const browserId = this.clientJS.getFingerprint();
+
+      if (!pf) pf = userAgent.toUpperCase().indexOf('MAC') >= 0 ? 'MAC' : currentOS;
+      if (!dtpe) {
+        dtpe =
+          !deviceType && (currentOS === 'Windows' || currentOS === 'Linux' || userAgent.toUpperCase().indexOf('MAC') >= 0)
+            ? 'D' /* Desktop */
+            : deviceType;
+      }
+
+      this.clientData = {
+        os: currentOS === 'iOS' ? 'I' : currentOS === 'Android' ? 'A' : currentOS,
+        osv: this.clientJS.getOSVersion(),
+        mod: this.clientJS.getDevice(),
+        agent: this.clientJS.getBrowser(),
+        cat: 'web',
+        agentversion: this.clientJS.getBrowserVersion(),
+        sdv: '1.0.0.0',
+        pf: 'W',
+        dtpe,
+        res: this.clientJS.getCurrentResolution(),
+        mnu: this.clientJS.getDeviceVendor(),
+        ori: window.innerHeight > window.innerWidth ? 'portrait' : 'landscape',
+        did: browserId,
+        // lat: geoLocation.lat,
+        // lng: geoLocation.lng,
+        browserid: browserId
+        // "x-forwarded-for": xForwardedFor
+      };
+    }
+
+    /**
+     * This method is used internally by getPostData fnc in multiple cases to create object of common data.
+     * @method addCommonData
+     * @param {} postdata
+     * @param postData
+     * @param addMnuOsv
+     * @param {} clientData
+     * @return
+     */
+    function addCommonData(postData, clientData, addMnuOsv) {
+      postData.dtpe = clientData.dtpe;
+      postData.lng = clientData.lng;
+      postData.lat = clientData.lat;
+      postData.did = clientData.did;
+      postData.res = clientData.res;
+      postData.pf = 'W';
+      postData.rtc = clientData.rtc;
+      postData.logNo = clientData.logno;
+      postData.agent = clientData.agent;
+      postData.agentversion = clientData.agentversion;
+      postData.cat = clientData.cat;
+      postData.browserid = clientData.browserid;
+      // adding os key only in case of android and ios mobile
+      if (clientData.os === 'A' || clientData.os === 'I') {
+        postData.os = clientData.os;
+      }
+      // postData["x-forwarded-for"] = clientData["x-forwarded-for"];
+      postData.mnu = clientData.mnu;
+      if (addMnuOsv) {
+        postData.osv = clientData.osv;
+        postData.evtNo = evtNo++;
+      }
+    }
+
+    /**
+     * This method returns an object which is used while sending an events to server.
+     * @method getPostData
+     * @param {} eventName
+     * @param {} options
+     * @return postdata
+     */
+    function getPostData(eventName, options) {
+      const clientData = this.getClientData(eventName);
+      const postData = options;
+
+      switch (eventName) {
+        case 'E':
+          addCommonData(postData, clientData);
+          postData.sty = clientData.sty;
+          break;
+        case 'App_launched':
+        case 'login_popup':
+        case 'sign_up':
+        case 'web_services':
+        case 'event':
+          if (options.key && options.key === 'api_failure') {
+            postData.date = new Date();
+            // break;
+          }
+          addCommonData(postData, clientData, true);
+          // delete postData.key;
+          break;
+        case 'O':
+          if (options.key === 'login_failed') {
+            postData.date = new Date();
+            addCommonData(postData, clientData, true);
+            postData.sty = clientData.sty;
+            delete postData.key;
+          }
+          break;
+        case 'B':
+          for (const key in clientData) {
+            postData[key] = clientData[key];
+          }
+          postData.evtNo = evtNo++;
+          break;
+      }
+
+      return postData;
+    }
+
+    /**
+     * This method returns geo locations of user.
+     * @method getGeoLocation
+     * @return
+     */
+    // this.getGeoLocation = function () {
+    //   navigator.geolocation.getCurrentPosition(function (position) {
+    //     geoLocation.lat = position ? position.coords.latitude : '';
+    //     geoLocation.lng = position ? position.coords.longitude : '';
+
+    //     if (window.AnalyticsJS && window.AnalyticsJS.clientData) {
+    //       window.AnalyticsJS.clientData.lat = geoLocation.lat;
+    //       window.AnalyticsJS.clientData.lng = geoLocation.lng;
+    //     }
+    //   });
+    // };
+
+    /**
+     * This returns client data
+     * @method getClientData
+     * @param {} param
+     * @return MemberExpression
+     */
+    this.getClientData = function (param) {
+      this.clientData.sty = param;
+      this.clientData.logno = logNo++;
+      this.clientData.rtc = new Date().getTime();
+      this.clientData.mnu = this.clientData.mnu ? this.clientData.mnu : 'NA';
+      return this.clientData;
+    };
+
+    /**
+     * This method used to send event and data to server.
+     * @method send
+     * @param {} eventName
+     * @param {} options
+     * @param {} callbackSuccessFnc
+     * @param {} callbackErrorFnc
+     * @return
+     */
+    this.send = function (eventName, options, callbackSuccessFnc, callbackErrorFnc) {
+      // var url = "https://collectpreprod.media.jio.com/postdata/" + eventName;
+      const url = 'https://collect.media.jio.com/postdata/' + eventName;
+      if (navigator.onLine) {
+        try {
+          const xhttp = new XMLHttpRequest();
+          xhttp.open('POST', url, true);
+          xhttp.setRequestHeader('Content-type', 'application/json');
+          xhttp.send(JSON.stringify(getPostData.call(this, eventName, options)));
+          /**
+           * Description
+           * @method onreadystatechange
+           * @return
+           */
+          xhttp.onreadystatechange = function () {
+            if (xhttp.readyState === 4) {
+              if (xhttp.status === 200) {
+                if (callbackSuccessFnc) callbackSuccessFnc(xhttp.responseText);
+              } else {
+                if (callbackErrorFnc) callbackErrorFnc(xhttp.status, xhttp.statusText);
+              }
+            }
+          };
+        } catch (e) {
+          //   console.log(e);
+        }
+      } else {
+        // console.log(
+        //   "analytics data=====",
+        //   JSON.stringify(getPostData.call(this, eventName, options))
+        // );
+      }
+    };
+
+    /**
+     * This method used to send Google analytics event
+     * @method sendGA
+     * @param string eventType
+     * @param {} data
+     *
+     */
+    // this.sendGA = function (eventType, data, GA_TRACKING_ID) {
+    // if (window.ga) {
+    // if (eventType === "pageview") {
+    // ga("send", {
+    // hitType: "pageview",
+    // page: location.pathname,
+    // title: document.title,
+    // });
+
+    // if (clevertap) {
+    // clevertap.event.push("Screen Viewed", {
+    // platform: "web",
+    // screen: "Home",
+    // });
+    // }
+    // } else if (eventType === "event") {
+    // var gaObj = {
+    // hitType: "event",
+    // eventCategory: data.category,
+    // eventAction: data.action,
+    // eventLabel: data.label,
+    // };
+
+    // if (data.custom) {
+    // gaObj = Object.assign(gaObj, data.custom);
+    // }
+    // ga("send", gaObj);
+    // } else if (eventType === "timing") {
+    // ga("send", {
+    // hitType: "timing",
+    // timingCategory: data.timingCategory,
+    // timingVar: data.timingVar,
+    // timingValue: data.timingValue,
+    // timingLabel: data.timingLabel,
+    // });
+    // } else if (eventType === "create") {
+    // //UA-106863966-3 --dev
+    // //UA-106863966-4 --prod
+    // //G-FMTDMC8SET
+    // //G-ML1SP9JD7B  -- dev
+    // ga("create", GA_TRACKING_ID, "auto"); //prod
+    // }
+    // }
+    // };
+
+    /**
+     * This method used to send Google analytics event
+     * @method sendGA-4
+     * @param string eventType
+     * @param eventType
+     * @param {} data
+     * @param GA_TRACKING_ID
+     *
+     */
+    this.sendGA = function (eventType, data, GA_TRACKING_ID) {
+      if (window.gtag) {
+        if (eventType === 'pageview') {
+          gtag('event', 'pageview', {
+            page: location.pathname,
+            title: document.title
+          });
+
+          // if (clevertap) {
+          //   clevertap.event.push('Screen Viewed', {
+          //     platform: 'web',
+          //     screen: 'Home'
+          //   });
+          // }
+        } else if (eventType === 'event') {
+          gtag(eventType, data.action, { ...data.params });
+        } else if (eventType === 'timing') {
+          gtag('event', {
+            hitType: 'timing',
+            timingCategory: data.timingCategory,
+            timingVar: data.timingVar,
+            timingValue: data.timingValue,
+            timingLabel: data.timingLabel
+          });
+        } else if (eventType === 'create') {
+          // UA-106863966-3 --dev
+          // UA-106863966-4 --prod
+          // G-FMTDMC8SET
+          // G-ML1SP9JD7B  -- dev
+          gtag('create', GA_TRACKING_ID, 'auto'); // prod
+        }
+      }
+    };
+
+    /**
+     * This method used to send Clevertap event
+     * @method sendCT
+     * @param {} clevObj
+     *
+     */
+    // this.sendCT = function (clevObj) {
+    //   if (clevertap) {
+    //     clevObj.info.network = navigator.connection && navigator.connection.effectiveType ? navigator.connection.effectiveType.toUpperCase() : 'WIFI';
+    //     clevertap.event.push(clevObj.eventName, clevObj.info);
+    //   }
+    // };
+
+    /**
+     * This method is initializing clavertap push notification
+     * @method initCTNotification
+     */
+    // this.initCTNotification = function () {
+    //   setTimeout(function () {
+    //     if (clevertap.notifications.push) {
+    //       clevertap.notifications.push({
+    //         titleText: 'Would you like to receive notifications on the latest Movies, TV Shows and more?',
+    //         bodyText: 'Notifications may include newly-added Movies, TV shows, personalized suggestions or other notices',
+    //         okButtonText: 'Allow',
+    //         rejectButtonText: 'No thanks',
+    //         okButtonColor: '#f28046',
+    //         serviceWorkerPath: './service-worker.js',
+    //         askAgainTimeInSeconds: 5 * 60 * 1000
+    //       });
+    //     }
+    //   }, 10000);
+    // };
+
+    /**
+     * Initializes variables, objects and data.
+     * @method init
+     * @return
+     */
+    this.init = function () {
+      this.clientJS = new ClientJS();
+      currentOS = this.clientJS.getOS();
+      userAgent = this.clientJS.getUserAgent();
+      // const that = this;
+      // setTimeout(function () {
+      //   that.getGeoLocation();
+      // }, 120000);
+
+      // getUserIP.call(this);
+      initClientData.call(this);
+      this.sendGA('create');
+      // this.initCTNotification();
+    };
+
+    this.init();
+  }
+
+  scope.AnalyticsJS = new AnalyticsJS();
+})(window);
